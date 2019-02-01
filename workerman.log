@@ -1,0 +1,2 @@
+2019-01-31 13:14:43 pid:1 Worker process terminated with ERROR: E_ERROR "Call to a member function getRemoteIp() on array in F:\vue\ws-server\server.php on line 20"
+2019-01-31 15:28:00 pid:1 Worker process terminated with ERROR: E_ERROR "Call to a member function send() on array in F:\vue\ws-server\server.php on line 43"
