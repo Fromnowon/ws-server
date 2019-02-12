@@ -40,14 +40,14 @@ $ws_worker->onMessage = function ($connection, $data) {
     // 给connection临时设置一个lastMessageTime属性，用来记录上次收到消息的时间
     $connection->lastMessageTime = time();
     $data = json_decode($data, true);
-    //收====0：心跳包 1：图片数据 2：身份确认
-    //发====10：向展示端推送图片 11：同步选手名单
+    //收====0：心跳包 101：图片数据 102：身份确认 103:拉取选手序号
+    //发====        201：向展示端推送图片 202：同步选手名单 203:发送选手序号 204:向展示端发送列表
     switch ($data['code']) {
-        case 1:
+        case 101:
             //向展示端推送图片
-            sendHandler('square', 10, $data['data']);
+            sendHandler('square', 201, $data['data']);
             break;
-        case 2:
+        case 102:
             global $role_arr, $num_arr;
             //处理参赛者身份
             /*
@@ -62,18 +62,26 @@ $ws_worker->onMessage = function ($connection, $data) {
             //role_arr变动处之一
             if (in_array($data['data']['num'], $num_arr)) {
                 //序号冲突
-                $connection->send(msgHandler(2, 'conflict'));
+                $connection->send(msgHandler(202, 'conflict'));
             } else {
-                $role_arr[$connection->getRemoteIp()] = array('role' => $data['data']['role'], 'num' => $data['data']['num']);
-                if (is_numeric($data['data']['num'])) {
+                if ($data['data']['isCompetitor']) {
+                    //注册参赛者
+                    $role_arr[$connection->getRemoteIp()] = array('role' => $data['data']['role'], 'num' => $data['data']['num']);
+                    //记录参赛者
                     array_push($num_arr, $data['data']['num']);
+                } else {
+                    //注册评委、展示端
+                    $role_arr[$connection->getRemoteIp()] = array('role' => $data['data']['role']);
                 }
-                $connection->send(msgHandler(2, 'ok'));
+                $connection->send(msgHandler(202, 'ok'));
                 print_r($role_arr);
                 print_r($num_arr);
                 //向展示端同步名单
-                sendHandler('square', 11, $role_arr);
+                sendHandler('square', 204, $role_arr);
             }
+            break;
+        case 103:
+            $connection->send(msgHandler(203,'test'));
             break;
     }
 };
@@ -85,7 +93,9 @@ $ws_worker->onClose = function ($connection) {
     global $role_arr, $num_arr;
     //role_arr变动处之一
     $ip = $connection->getRemoteIp();
-    unset($num_arr[array_search($role_arr[$ip]['num'], $num_arr)]);
+    if (isset($role_arr[$ip]['num'])) {
+        unset($num_arr[array_search($role_arr[$ip]['num'], $num_arr)]);
+    }
     unset($role_arr[$ip]);
     echo $ip . '断开连接' . "\n";
 };
@@ -105,7 +115,6 @@ function sendHandler($role, $code, $data)
     global $ws_worker, $role_arr;
     foreach ($ws_worker->connections as $client) {
         if ($role_arr[$client->getRemoteIp()]['role'] === $role) {
-            //只发送给展示端
             $client->send(msgHandler($code, $data));
         }
     }
